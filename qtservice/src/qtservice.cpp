@@ -65,17 +65,23 @@ static void qtServiceCloseDebugLog()
     if (!f)
         return;
     QString ps(QTime::currentTime().toString("HH:mm:ss.zzz ") + QLatin1String("--- DEBUG LOG CLOSED ---\n\n"));
-    f->write(ps.toAscii());
+    f->write(ps.toLatin1());
     f->flush();
     f->close();
     delete f;
     f = 0;
 }
 
+#if QT_VERSION >= QT_VERSION_CHECK(5,0,0)
+void qtServiceLogDebug(QtMsgType type, const QMessageLogContext &context, const QString &msg)
+#else
 void qtServiceLogDebug(QtMsgType type, const char* msg)
+#endif
 {
+#if QT_VERSION < QT_VERSION_CHECK(5,0,0)
     static QMutex mutex;
     QMutexLocker locker(&mutex);
+#endif
     QString s(QTime::currentTime().toString("HH:mm:ss.zzz "));
     s += QString("[%1] ").arg(
 #if defined(Q_OS_WIN32)
@@ -96,7 +102,7 @@ void qtServiceLogDebug(QtMsgType type, const char* msg)
             return;
         }
         QString ps(QLatin1String("\n") + s + QLatin1String("--- DEBUG LOG OPENED ---\n"));
-        f->write(ps.toAscii());
+        f->write(ps.toLatin1());
     }
 
     switch (type) {
@@ -117,10 +123,13 @@ void qtServiceLogDebug(QtMsgType type, const char* msg)
         break;
     }
 
+#if QT_VERSION >= QT_VERSION_CHECK(5,0,0)
+    s += QString("[%1][%2]:[%3] - ").arg(context.file, context.function).arg(context.line);
+#endif
     s += msg;
     s += QLatin1String("\n");
 
-    f->write(s.toAscii());
+    f->write(s.toLatin1());
     f->flush();
 
     if (type == QtFatalMsg) {
@@ -571,7 +580,7 @@ int QtServiceBasePrivate::run(bool asService, const QStringList &argList)
     \row \i -p \i -pause \i Pause the service.
     \row \i -r \i -resume \i Resume a paused service.
     \row \i -c \e{cmd} \i -command \e{cmd}
-	 \i Send the user defined command code \e{cmd} to the service application.
+     \i Send the user defined command code \e{cmd} to the service application.
     \row \i -v \i -version \i Display version and status information.
     \endtable
 
@@ -625,7 +634,11 @@ int QtServiceBasePrivate::run(bool asService, const QStringList &argList)
 QtServiceBase::QtServiceBase(int argc, char **argv, const QString &name)
 {
 #if defined(QTSERVICE_DEBUG)
+#if QT_VERSION >= QT_VERSION_CHECK(5,0,0)
+    qInstallMessageHandler(qtServiceLogDebug);
+#else
     qInstallMsgHandler(qtServiceLogDebug);
+#endif
     qAddPostRoutine(qtServiceCloseDebugLog);
 #endif
 
@@ -634,12 +647,12 @@ QtServiceBase::QtServiceBase(int argc, char **argv, const QString &name)
 
     QString nm(name);
     if (nm.length() > 255) {
-	qWarning("QtService: 'name' is longer than 255 characters.");
-	nm.truncate(255);
+    qWarning("QtService: 'name' is longer than 255 characters.");
+    nm.truncate(255);
     }
     if (nm.contains('\\')) {
-	qWarning("QtService: 'name' contains backslashes '\\'.");
-	nm.replace((QChar)'\\', (QChar)'\0');
+    qWarning("QtService: 'name' contains backslashes '\\'.");
+    nm.replace((QChar)'\\', (QChar)'\0');
     }
 
     d_ptr = new QtServiceBasePrivate(nm);
